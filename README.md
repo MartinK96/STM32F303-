@@ -8,5 +8,5 @@ Project includes:
 * Initialising and utilising the onboard ADC and DAC
 * Scaling – introduction of electronic circuits to enable full use of digital range
 
-• Designing an interface to a required level of resolution and sample rate
-• Designing fundamental analogue circuitry for conditioning signals
+* Designing an interface to a required level of resolution and sample rate
+* Designing fundamental analogue circuitry for conditioning signals
