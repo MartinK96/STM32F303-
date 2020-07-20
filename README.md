@@ -7,5 +7,6 @@ Project includes:
 * Analogue inputs – enabling analogue voltages to be input to the microcontroller
 * Initialising and utilising the onboard ADC and DAC
 * Scaling – introduction of electronic circuits to enable full use of digital range
-* Initialising onboard timer to generate interrupt (ISR)
-* Timer-based interrupts – use the on-board timers to control the sample rate
+
+• Designing an interface to a required level of resolution and sample rate
+• Designing fundamental analogue circuitry for conditioning signals
