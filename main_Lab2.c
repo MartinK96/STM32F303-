@@ -1,0 +1,149 @@
+/* 
+	Pete Hubbard 2017
+	Loughborough University
+	ELC055 Lab 1
+	
+	The following 'c' code presents an outline for you to adapt during the laboratory
+	
+	*/
+
+#include "stm32f3xx.h"                  // Device header
+
+
+void delay(int a); // prototype for a delay function
+
+void SubFunction(void);
+
+int ADC1ValueNew;
+
+int main(void)
+{
+	// Enable clock on GPIO port E
+	RCC->AHBENR |= RCC_AHBENR_GPIOEEN;
+	
+	// Define mode for each 
+	// GPIOE is a structure defined in stm32f303xc.h file
+	GPIOE->MODER |= 0x55550000; // Set mode of each pin in port E
+	GPIOE->OTYPER &= ~(0x0000FF00); // Set output type for each pin required in Port E
+	GPIOE->PUPDR &= ~(0xFFFF0000); // Set Pull up/Pull down resistor configuration for Port E
+	
+	//The clock pulses are directed to the timer by the following command:
+	RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+
+	//Set timer attributes
+	TIM3->PSC = 799; // prescalor value in Timer 3 as 100
+	TIM3->ARR = 9999; // Auto-Reset Register of Timer 3 set to 1000 counts
+
+	//The timer action is set in motion with the ‘enable’ command
+	TIM3->CR1 |= TIM_CR1_CEN;
+
+	TIM3->DIER |= TIM_DIER_UIE; // Set DIER register to watch out for an ‘Update’ Interrupt Enable (UIE) – or 0x00000001
+	
+	NVIC_EnableIRQ(TIM3_IRQn); // Enable Timer 3 interrupt request in NVIC
+	
+	//DAC
+	//Enable Clock Connection to DAC
+	RCC->APB1ENR |= RCC_APB1ENR_DAC1EN;
+	
+	//Disable buffer function
+	DAC1->CR |= DAC_CR_BOFF1;
+	
+	//Enable DAC peripheral
+	DAC1->CR |= DAC_CR_EN1;
+	
+	//Initialise Register
+	DAC1->DHR8R1 = 0x00;
+	
+	SubFunction(); // Function call
+	
+	while(1){
+		//Start Sampling from ADC
+		ADC1->CR |= 0x00000004; //sets the 3rd bit (ADSTART) to a high in control register
+		while(!ADC1->ISR & 0x00000004); //wait for the EOC flag to go high in the ISR
+		
+		//read from Data Register
+		ADC1ValueNew = ADC1->DR;
+		
+		GPIOE->BSRRH = 0xFF00;
+		GPIOE->BSRRL = ADC1ValueNew<<8;
+	}
+}
+	
+//Write values to DAC using interrupt
+int counterAddress = 0x00000000;
+void TIM3_IRQHandler()
+{
+	if ((TIM3->SR & TIM_SR_UIF) !=0) // Check interrupt source is from the ‘Update’ interrupt flag
+	{
+		//...INTERRUPT ACTION HERE
+		for (int x=0;x<255;x++)
+			DAC1->DHR8R1 = counterAddress; //write to the DAC 
+			counterAddress++;
+	}	
+	TIM3->SR &= ~TIM_SR_UIF; // Reset ‘Update’ interrupt flag in the SR register
+}
+
+/*
+void delay (int a)
+{
+    volatile int i,j;
+
+    for (i=0 ; i < a ; i++)
+    {
+        j++;
+    }
+
+    return;
+}	
+*/
+
+/* Function Definition of SubFunction */
+// Counts from 0-9 then returns
+void SubFunction(void){
+	//ADC
+	//Control Register
+	//Start voltage regulator
+	ADC1->CR |= 0x00000000;
+	ADC1->CR |= 0x10000000;
+	//Wait until voltage regulator has started
+	int x = 0;
+	while(x<100){
+		x++;
+	}
+		
+	//Start calibration
+	ADC1->CR |= 0x80000000;
+	while((ADC1->CR & 0x80000000)!=0); //AND-ing value from register with second value and waiting until it becomes zero.
+	//GPIOE->BSRRL = 0x0100;
+	
+	//Enable clock to ADC
+	RCC->CFGR2 |= RCC_CFGR2_ADCPRE12_DIV2;
+	RCC->AHBENR |= RCC_AHBENR_ADC12EN;
+	ADC1_2_COMMON->CCR |= 0x00010000;
+	
+	//Enable clock on GPIOA - Selected pin 0 on port A to be analogue out ADC1
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+	
+	//Set GPIOA as analogue mode 
+	GPIOA->MODER |= 0x00000002; // Set mode of each pin in port A/ sets second to last bit as a high (doesn't touch anything else)
+	GPIOA->MODER &= ~(0x00000001); // Sets only the last bit as a 0(i.e doesn't touch anything else)
+	
+	//Configuration register
+	ADC1->CFGR |= 0x0010; //???? ???? ???1 ???? set specific bit to 1
+	ADC1->CFGR &= ~(0x2028); //??0? ???? ??0? 0??? set specific bit to 0
+	
+	//Multiplexing - set L bits to 0 and set SQ1 bit to 1 as it is input one in the PIN table - ‘L’ states how many channels to sequence
+	ADC1->SQR1 |= 0x00000040; // Set first SQR1 channel bit to a 1
+	ADC1->SQR1 &= ~(0x0000078F); // Set L's=0 and Rest of SQE1 channels bits to a 0
+	
+	// Setting the Sample time register to 7.5 ADC clock cycles
+	ADC1->SMPR1 |= 0x00000018; // sets 2 LSBS of SMP1 to a 1
+	ADC1->SMPR1 &= ~(0x00000100); // sets MSB of SMP1 to a 0
+	
+	//Enable ADC - ADEN in CR to 1
+	ADC1->CR |= 0x00000001;
+	
+	//Wait for ADRDY flag 
+	while(!ADC1->ISR & 0x00000001); //AND-ing value from register with second value and waiting until it becomes zero.
+	//GPIOE->BSRRL = 0x0800; //Testing to see if the ARDY flag goes up with visual indication
+}
